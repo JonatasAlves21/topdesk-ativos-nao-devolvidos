@@ -95,6 +95,9 @@ exportar_agendado.bat
 Sem 1Password, preencha os valores direto no `.env` e rode `npm start`. O `.env`
 está no `.gitignore`.
 
+Se faltar alguma variável do TOPdesk, o script para antes de chamar a API e lista
+quais estão ausentes: com um ID vazio, as consultas sairiam sem filtro.
+
 | Variável | Para quê |
 |---|---|
 | `TOPDESK_URL`, `TOPDESK_EMAIL`, `TOPDESK_TOKEN` | Acesso à API (Basic com *application password*) |

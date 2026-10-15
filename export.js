@@ -29,6 +29,16 @@ const TEMPLATE_CELULAR     = process.env.TOPDESK_TEMPLATE_CELULAR || "";
 const STATUS_NAO_DEV       = process.env.TOPDESK_STATUS_NAO_DEVOLVIDO || "";
 const AUTOMATION_CALLER_ID = process.env.TOPDESK_AUTOMATION_CALLER_ID || "";
 
+// Sem estes valores as consultas saem com filtro vazio. O script para antes de
+// chamar a API, em vez de varrer ativos e histórico com parâmetros errados.
+const REQUIRED_ENV = {
+  TOPDESK_URL, TOPDESK_EMAIL, TOPDESK_TOKEN,
+  TOPDESK_TEMPLATE_NOTEBOOK: TEMPLATE_NOTEBOOK,
+  TOPDESK_TEMPLATE_CELULAR: TEMPLATE_CELULAR,
+  TOPDESK_STATUS_NAO_DEVOLVIDO: STATUS_NAO_DEV,
+  TOPDESK_AUTOMATION_CALLER_ID: AUTOMATION_CALLER_ID,
+};
+
 const COLUMNS = [
   { header: "NOME DO DISPOSITIVO",            key: "nome_dispositivo" },
   { header: "MODELO",                         key: "modelo" },
@@ -705,6 +715,11 @@ async function writeExauridosExcel(rows, outputPath) {
 }
 
 async function main() {
+  const missing = Object.entries(REQUIRED_ENV).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length) {
+    throw new Error(`Variáveis de ambiente ausentes: ${missing.join(", ")} (ver .env.example)`);
+  }
+
   console.time("TOTAL");
 
   console.log("Buscando ativos não devolvidos...");
