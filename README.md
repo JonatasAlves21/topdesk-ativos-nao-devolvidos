@@ -1,14 +1,26 @@
 # topdesk-ativos-nao-devolvidos
 
+[![testes](https://github.com/JonatasAlves21/topdesk-ativos-nao-devolvidos/actions/workflows/testes.yml/badge.svg)](https://github.com/JonatasAlves21/topdesk-ativos-nao-devolvidos/actions/workflows/testes.yml)
+![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)
+
 Script Node.js que gera toda semana o relatório de **equipamentos não devolvidos**
 (notebooks, celulares e tablets) a partir da API do TOPdesk. A saída é um Excel com
 resumo executivo e detalhe por ativo, publicado no SharePoint via Microsoft Graph.
 Um fluxo do Power Automate vigia a execução e avisa quando o relatório não foi
 atualizado.
 
-> **Resultado medido:** a execução caiu de **10min23 para 1min28** (~7×) depois de
-> limitar a varredura do histórico de cada ativo. As execuções agendadas mais
-> recentes levam **42 a 56 segundos**.
+**Destaques**
+
+- ⏱️ Execução **~7× mais rápida** (de 10min23 para 1min28) depois de limitar a varredura do histórico de cada ativo.
+- 🔍 Recupera dados que a API não entrega prontos: a **data da mudança de status** e o **centro de custo apagado** pela automação.
+- 📊 Relatório pronto para gestão: KPIs, faixas de prazo, totais por estado e por centro de custo.
+- 🔐 Nenhum segredo em texto puro: credenciais injetadas pelo 1Password CLI na hora da execução.
+- ✅ Regras de negócio cobertas por testes automatizados, rodando no GitHub Actions a cada push.
+
+![Aba Resumo do relatório, gerada com dados fictícios](docs/resumo.png)
+
+<sub>Imagem gerada com `npm run exemplo`, só com dados fictícios.</sub>
 
 ---
 
@@ -68,9 +80,61 @@ flowchart LR
 9. **Watchdog**: um fluxo do Power Automate roda toda segunda de manhã, lê os
    metadados do arquivo no SharePoint e envia alerta se ele não foi atualizado.
 
+![Aba de detalhe, com a coluna de dias colorida pela faixa de prazo](docs/detalhe.png)
+
+---
+
+## Stack
+
+| | |
+|---|---|
+| Linguagem | Node.js 18+ (`fetch` nativo), CommonJS |
+| APIs | TOPdesk REST (Assets, History, Incidents, Persons), Microsoft Graph |
+| Excel | [ExcelJS](https://github.com/exceljs/exceljs) |
+| Segredos | [1Password CLI](https://developer.1password.com/docs/cli/) (`op run`) |
+| Agendamento | Agendador de Tarefas do Windows + watchdog no Power Automate |
+| Testes | `node:test` (nativo, sem dependência extra) + GitHub Actions |
+
+## Estrutura do projeto
+
+```
+export.js              ponto de entrada: encadeia as etapas e cronometra cada uma
+src/
+  config.js            variáveis de ambiente e validação das obrigatórias
+  topdesk.js           chamadas à API: ativos, histórico, pessoas e chamados
+  regras.js            regras de negócio puras (UF, dias sem retorno, vínculo de
+                       chamados, montagem das linhas, motivo do "sem CC")
+  util.js              retry com backoff, limite de concorrência, datas, EBUSY
+  sharepoint.js        token do Microsoft Graph e upload
+  diagnostico.js       ranking dos ativos mais lentos no histórico
+  excel/
+    estilo.js          paleta e faixas de prazo
+    resumo.js          aba Resumo (KPIs, UF, centro de custo)
+    detalhe.js         aba de detalhe
+    sem-cc.js          relatório dos ativos sem centro de custo
+    index.js           gravação dos dois arquivos
+scripts/
+  gerar-exemplo.js     relatórios com dados fictícios, sem TOPdesk
+test/                  testes das regras, utilitários e geração do Excel
+```
+
+O que é regra de negócio fica em `src/regras.js` e em `summarize()`, em
+`src/excel/resumo.js`, sem chamada de rede. Por isso dá para testar tudo sem uma
+instância do TOPdesk.
+
 ---
 
 ## Como usar
+
+### Ver o resultado sem TOPdesk
+
+```bash
+npm install
+npm run exemplo   # gera exemplo_nao_devolvidos.xlsx e exemplo_nao_devolvidos_sem_cc.xlsx
+npm test          # roda os testes
+```
+
+### Rodar na sua instância
 
 Requisitos:
 - Node.js 18 ou superior (usa o `fetch` nativo);
@@ -148,6 +212,9 @@ o upload no SharePoint.
   consolidado inclui ativos sem CC e filtra por data; os arquivos diários por centro
   de custo (outro fluxo) não fazem nenhuma das duas coisas. A nota no rodapé evita o
   chamado de "os números não batem".
+- **Regras separadas da rede.** A lógica que decide datas, centro de custo, UF e
+  motivo fica em funções puras, testadas sem rede. As chamadas à API ficam em
+  `src/topdesk.js`.
 
 ## Licença
 
