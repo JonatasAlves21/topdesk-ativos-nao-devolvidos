@@ -1,22 +1,29 @@
-# topdesk-ativos-nao-devolvidos
+# Relatório de equipamentos não devolvidos
 
 [![testes](https://github.com/JonatasAlves21/topdesk-ativos-nao-devolvidos/actions/workflows/testes.yml/badge.svg)](https://github.com/JonatasAlves21/topdesk-ativos-nao-devolvidos/actions/workflows/testes.yml)
 ![Node.js](https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white)
 ![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)
 
-Script Node.js que gera toda semana o relatório de **equipamentos não devolvidos**
-(notebooks, celulares e tablets) a partir da API do TOPdesk. A saída é um Excel com
-resumo executivo e detalhe por ativo, publicado no SharePoint via Microsoft Graph.
-Um fluxo do Power Automate vigia a execução e avisa quando o relatório não foi
-atualizado.
+**Em poucas palavras:** quando alguém sai da empresa, precisa devolver para a TI o
+notebook e o celular que usava. Cada equipamento não devolvido fica registrado num
+chamado, mas ninguém enxergava o todo. Este projeto junta todos esses casos num
+relatório que a gestão recebe **toda segunda-feira**, sem ninguém montar nada à mão.
+
+- **O que o relatório mostra:** quantos equipamentos estão fora, de quais centros de
+  custo e estados, e há quantos dias.
+- **Como funciona:** um script em Node.js lê os dados da plataforma de service desk
+  pela API, monta uma planilha Excel com o resumo e publica no SharePoint. Se a
+  planilha não for atualizada, um fluxo do Power Automate avisa a equipe.
+- **Resultado:** depois de uma otimização, o relatório passou de **10min23 para
+  1min28** (cerca de 7× mais rápido).
 
 **Destaques**
 
-- ⏱️ Execução **~7× mais rápida** (de 10min23 para 1min28) depois de limitar a varredura do histórico de cada ativo.
-- 🔍 Recupera dados que a API não entrega prontos: a **data da mudança de status** e o **centro de custo apagado** pela automação.
-- 📊 Relatório pronto para gestão: KPIs, faixas de prazo, totais por estado e por centro de custo.
-- 🔐 Nenhum segredo em texto puro: credenciais injetadas pelo 1Password CLI na hora da execução.
-- ✅ Regras de negócio cobertas por testes automatizados, rodando no GitHub Actions a cada push.
+- ⏱️ Execução **~7× mais rápida** (de 10min23 para 1min28) depois de limitar quantas páginas do histórico de cada equipamento o script lê.
+- 🔍 Recupera dados que a API não entrega prontos: a **data em que o status mudou** e o **centro de custo apagado** pela automação.
+- 📊 Relatório pronto para a gestão: indicadores, faixas de prazo, totais por estado e por centro de custo.
+- 🔐 Nenhuma senha no código: as credenciais ficam num cofre de senhas e só são usadas na hora da execução.
+- ✅ Regras de negócio cobertas por testes automáticos, que rodam no GitHub Actions a cada mudança.
 
 ![Aba Resumo do relatório, gerada com dados fictícios](docs/resumo.png)
 
@@ -27,7 +34,8 @@ atualizado.
 ## Problema
 
 Quando um colaborador sai e não devolve o equipamento, uma automação marca o ativo
-como **"Não devolvido"** no Asset Management do TOPdesk e abre um chamado. Faltava
+como **"Não devolvido"** no módulo de ativos da plataforma de service desk e abre um
+chamado. Faltava
 uma visão consolidada: quantos são, de qual centro de custo e estado, e há quantos
 dias estão sem retorno.
 
@@ -72,11 +80,11 @@ flowchart LR
      faixa.
 6. **Sem centro de custo**: os ativos cujo CC não foi recuperado vão para um arquivo
    separado, com o **motivo** de cada um ("cortado no limite de páginas", "histórico
-   esgotado sem evento de CC"…), para a equipe preencher no TOPdesk.
+   esgotado sem evento de CC"…), para a equipe preencher na plataforma.
 7. **SharePoint**: upload via Microsoft Graph com *client credentials*. Se o arquivo
    estiver aberto (HTTP 423), a mensagem explica o que fazer.
-8. **Segredos**: nada em texto puro. O `.env` guarda referências `op://` e o
-   1Password CLI (`op run`) injeta os valores só durante a execução.
+8. **Segredos**: nada em texto puro. O `.env` guarda só referências `op://` ao cofre
+   de senhas, e a CLI do cofre (`op run`) injeta os valores só durante a execução.
 9. **Watchdog**: um fluxo do Power Automate roda toda segunda de manhã, lê os
    metadados do arquivo no SharePoint e envia alerta se ele não foi atualizado.
 
@@ -89,9 +97,9 @@ flowchart LR
 | | |
 |---|---|
 | Linguagem | Node.js 18+ (`fetch` nativo), CommonJS |
-| APIs | TOPdesk REST (Assets, History, Incidents, Persons), Microsoft Graph |
+| APIs | API REST da plataforma de service desk (Assets, History, Incidents, Persons), Microsoft Graph |
 | Excel | [ExcelJS](https://github.com/exceljs/exceljs) |
-| Segredos | [1Password CLI](https://developer.1password.com/docs/cli/) (`op run`) |
+| Segredos | CLI do cofre de senhas (`op run`) |
 | Agendamento | Agendador de Tarefas do Windows + watchdog no Power Automate |
 | Testes | `node:test` (nativo, sem dependência extra) + GitHub Actions |
 
@@ -101,7 +109,7 @@ flowchart LR
 export.js              ponto de entrada: encadeia as etapas e cronometra cada uma
 src/
   config.js            variáveis de ambiente e validação das obrigatórias
-  topdesk.js           chamadas à API: ativos, histórico, pessoas e chamados
+  topdesk.js           chamadas à API da plataforma: ativos, histórico, pessoas e chamados
   regras.js            regras de negócio puras (UF, dias sem retorno, vínculo de
                        chamados, montagem das linhas, motivo do "sem CC")
   util.js              retry com backoff, limite de concorrência, datas, EBUSY
@@ -114,19 +122,19 @@ src/
     sem-cc.js          relatório dos ativos sem centro de custo
     index.js           gravação dos dois arquivos
 scripts/
-  gerar-exemplo.js     relatórios com dados fictícios, sem TOPdesk
+  gerar-exemplo.js     relatórios com dados fictícios, sem acessar a plataforma
 test/                  testes das regras, utilitários e geração do Excel
 ```
 
 O que é regra de negócio fica em `src/regras.js` e em `summarize()`, em
-`src/excel/resumo.js`, sem chamada de rede. Por isso dá para testar tudo sem uma
-instância do TOPdesk.
+`src/excel/resumo.js`, sem chamada de rede. Por isso dá para testar tudo sem acesso
+à plataforma de service desk.
 
 ---
 
 ## Como usar
 
-### Ver o resultado sem TOPdesk
+### Ver o resultado só com dados fictícios
 
 ```bash
 npm install
@@ -138,9 +146,8 @@ npm test          # roda os testes
 
 Requisitos:
 - Node.js 18 ou superior (usa o `fetch` nativo);
-- [1Password CLI](https://developer.1password.com/docs/cli/) (opcional, mas
-  recomendado);
-- um usuário de API no TOPdesk com *application password*;
+- a CLI do cofre de senhas (`op`), opcional, mas recomendada;
+- um usuário de API na plataforma de service desk com *application password*;
 - um app registration no Entra ID com permissão no site do SharePoint.
 
 ```bash
@@ -156,15 +163,15 @@ exportar.bat
 exportar_agendado.bat
 ```
 
-Sem 1Password, preencha os valores direto no `.env` e rode `npm start`. O `.env`
-está no `.gitignore`.
+Sem o cofre de senhas, preencha os valores direto no `.env` e rode `npm start`. O
+`.env` está no `.gitignore`.
 
-Se faltar alguma variável do TOPdesk, o script para antes de chamar a API e lista
+Se faltar alguma variável da plataforma, o script para antes de chamar a API e lista
 quais estão ausentes: com um ID vazio, as consultas sairiam sem filtro.
 
 | Variável | Para quê |
 |---|---|
-| `TOPDESK_URL`, `TOPDESK_EMAIL`, `TOPDESK_TOKEN` | Acesso à API (Basic com *application password*) |
+| `TOPDESK_URL`, `TOPDESK_EMAIL`, `TOPDESK_TOKEN` | Acesso à API da plataforma (Basic com *application password*) |
 | `TOPDESK_TEMPLATE_NOTEBOOK`, `TOPDESK_TEMPLATE_CELULAR` | Templates de ativo consultados |
 | `TOPDESK_STATUS_NAO_DEVOLVIDO` | ID do status "Não devolvido" |
 | `TOPDESK_AUTOMATION_CALLER_ID` | Pessoa usada pela automação que abre os chamados |
@@ -213,8 +220,8 @@ o upload no SharePoint.
   de custo (outro fluxo) não fazem nenhuma das duas coisas. A nota no rodapé evita o
   chamado de "os números não batem".
 - **Regras separadas da rede.** A lógica que decide datas, centro de custo, UF e
-  motivo fica em funções puras, testadas sem rede. As chamadas à API ficam em
-  `src/topdesk.js`.
+  motivo fica em funções puras, testadas sem rede. As chamadas à API da plataforma
+  ficam em `src/topdesk.js`.
 
 ## Licença
 

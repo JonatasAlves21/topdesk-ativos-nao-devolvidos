@@ -1,7 +1,7 @@
 {
   "name": "topdesk-ativos-nao-devolvidos",
   "version": "1.1.0",
-  "description": "Relatório semanal de ativos não devolvidos no TOPdesk: Excel com resumo executivo, publicado no SharePoint via Microsoft Graph.",
+  "description": "Relatório semanal de equipamentos não devolvidos, lido da plataforma de service desk: Excel com resumo executivo, publicado no SharePoint via Microsoft Graph.",
   "main": "export.js",
   "scripts": {
     "start": "node export.js",
